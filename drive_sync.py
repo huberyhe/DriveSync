@@ -4,6 +4,7 @@ import sys
 import time
 import logging
 import shutil
+import filecmp
 from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler, FileSystemEventHandler
 
@@ -32,13 +33,17 @@ class SyncHandler(FileSystemEventHandler):
             logging.info("%s %s handle" % (src_path, event_type))
             time.sleep(HANDLER_WAIT) #延迟处理
             try: 
-                if event_type in ['created', 'modified']:
+                if event_type in ['created']:
                     dst_path_dir = os.path.dirname(dst_path)
                     if not os.path.exists(dst_path_dir):
                         os.makedirs(dst_path_dir)
                     shutil.copy2(src_path, dst_path)
+                elif event_type in ['modified']:
+                    if not filecmp.cmp(src_path, dst_path):
+                        shutil.copy2(src_path, dst_path)
                 elif event_type in ['deleted']:
-                    if os.path.exists(dst_path): os.remove(dst_path)
+                    if not os.path.exists(src_path) and os.path.exists(dst_path):
+                        os.remove(dst_path)
                 else:
                     pass
             except Exception as e:
