@@ -22,36 +22,40 @@ def get_another_path(src_path):
     else:
         return None
 
+def add_handle_queue(event):
+    src_path = event.src_path
+    event_type = event.event_type
+    is_directory = event.is_directory
+    if is_directory: return
+    if not is_directory and (src_path not in file_in_handler or time.time() - file_in_handler[src_path] > HANDLER_WAIT):
+        dst_path = get_another_path(src_path)
+        logging.info("%s %s handle" % (src_path, event_type))
+        time.sleep(HANDLER_WAIT) #延迟处理
+        try: 
+            if event_type in ['created']:
+                dst_path_dir = os.path.dirname(dst_path)
+                if not os.path.exists(dst_path_dir):
+                    os.makedirs(dst_path_dir)
+                shutil.copy2(src_path, dst_path)
+            elif event_type in ['modified']:
+                if not filecmp.cmp(src_path, dst_path):
+                    shutil.copy2(src_path, dst_path)
+            elif event_type in ['deleted']:
+                if not os.path.exists(src_path) and os.path.exists(dst_path):
+                    os.remove(dst_path)
+            else:
+                pass
+        except Exception as e:
+            logging.error('Failed:%s' % e.message)
+            pass
+        file_in_handler[dst_path] = file_in_handler[src_path] = time.time()
+    else:
+        logging.info("%s %s pass" % (src_path, event_type))
+
+
 class SyncHandler(FileSystemEventHandler):
     def on_any_event(self, event):
-        src_path = event.src_path
-        event_type = event.event_type
-        is_directory = event.is_directory
-        if is_directory: return
-        if not is_directory and (src_path not in file_in_handler or time.time() - file_in_handler[src_path] > HANDLER_WAIT):
-            dst_path = get_another_path(src_path)
-            logging.info("%s %s handle" % (src_path, event_type))
-            time.sleep(HANDLER_WAIT) #延迟处理
-            try: 
-                if event_type in ['created']:
-                    dst_path_dir = os.path.dirname(dst_path)
-                    if not os.path.exists(dst_path_dir):
-                        os.makedirs(dst_path_dir)
-                    shutil.copy2(src_path, dst_path)
-                elif event_type in ['modified']:
-                    if not filecmp.cmp(src_path, dst_path):
-                        shutil.copy2(src_path, dst_path)
-                elif event_type in ['deleted']:
-                    if not os.path.exists(src_path) and os.path.exists(dst_path):
-                        os.remove(dst_path)
-                else:
-                    pass
-            except Exception as e:
-                logging.error('Failed:%s' % e.message)
-                pass
-            file_in_handler[dst_path] = file_in_handler[src_path] = time.time()
-        else:
-            logging.info("%s %s pass" % (src_path, event_type))
+        add_handle_queue(event)
 
 
 if __name__ == "__main__":
